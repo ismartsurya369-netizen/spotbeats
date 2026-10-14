@@ -24,10 +24,9 @@ jobs:
           flutter-version: '3.24.3'
           channel: 'stable'
 
-      - name: Auto-Generate Project & Configure Android Permissions
+      - name: Generate Complete Project & Source Files
         run: |
           flutter create spotbeats_app --project-name spotbeats --org com.spotbeats
-          cp main.dart spotbeats_app/lib/main.dart
 
           cat << 'EOF' > spotbeats_app/pubspec.yaml
           name: spotbeats
@@ -41,16 +40,26 @@ jobs:
           dependencies:
             flutter:
               sdk: flutter
-            http: ^1.2.2
-            just_audio: ^0.9.40
-            just_audio_background: ^0.0.1-beta.13
-            path_provider: ^2.1.4
-            shared_preferences: ^2.3.2
+            http: 1.2.2
+            just_audio: 0.9.40
+            just_audio_background: 0.0.1-beta.13
+            path_provider: 2.1.4
+
+          dependency_overrides:
+            just_audio_android: 0.9.11
+            just_audio_platform_interface: 4.3.0
+            audio_session: 0.1.21
+            audio_service: 0.18.15
+            audio_service_platform_interface: 0.1.2
+            path_provider: 2.1.4
+            path_provider_android: 2.2.4
+            path_provider_platform_interface: 2.1.2
+            sqflite: 2.3.3+1
+            sqflite_common: 2.5.4
 
           dev_dependencies:
             flutter_test:
               sdk: flutter
-            flutter_lints: ^3.0.0
 
           flutter:
             uses-material-design: true
@@ -110,15 +119,416 @@ jobs:
           </manifest>
           EOF
 
-      - name: Install Dependencies & Compile Release APK
-        working-directory: spotbeats_app
-        run: |
-          flutter pub get
-          flutter build apk --release --no-tree-shake-icons
+          cat << 'EOF' > spotbeats_app/lib/main.dart
+          import 'dart:async';
+          import 'dart:convert';
+          import 'dart:io';
+          import 'package:flutter/material.dart';
+          import 'package:http/http.dart' as http;
+          import 'package:just_audio/just_audio.dart';
+          import 'package:just_audio_background/just_audio_background.dart';
+          import 'package:path_provider/path_provider.dart';
 
-      - name: Upload Finished APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: SpotBeats-APK
-          path: spotbeats_app/build/app/outputs/flutter-apk/app-release.apk
-          
+          Future<void> main() async {
+            WidgetsFlutterBinding.ensureInitialized();
+
+            await JustAudioBackground.init(
+              androidNotificationChannelId: 'com.spotbeats.app.channel.audio',
+              androidNotificationChannelName: 'SpotBeats Audio Playback',
+              androidNotificationOngoing: true,
+            );
+
+            runApp(const SpotBeatsApp());
+          }
+
+          class MusicTrack {
+            final String id;
+            final String title;
+            final String artist;
+            final String album;
+            final String genre;
+            final String coverUrl;
+            final String audioUrl;
+            final String? localAudioPath;
+            final String? localCoverPath;
+
+            const MusicTrack({
+              required this.id,
+              required this.title,
+              required this.artist,
+              required this.album,
+              required this.genre,
+              required this.coverUrl,
+              required this.audioUrl,
+              this.localAudioPath,
+              this.localCoverPath,
+            });
+
+            bool get hasLocalAudio =>
+                localAudioPath != null && File(localAudioPath!).existsSync();
+
+            bool get hasLocalCover =>
+                localCoverPath != null && File(localCoverPath!).existsSync();
+
+            MusicTrack copyWith({
+              String? localAudioPath,
+              String? localCoverPath,
+            }) {
+              return MusicTrack(
+                id: id,
+                title: title,
+                artist: artist,
+                album: album,
+                genre: genre,
+                coverUrl: coverUrl,
+                audioUrl: audioUrl,
+                localAudioPath: localAudioPath ?? this.localAudioPath,
+                localCoverPath: localCoverPath ?? this.localCoverPath,
+              );
+            }
+
+            Map<String, dynamic> toJson() => {
+                  'id': id,
+                  'title': title,
+                  'artist': artist,
+                  'album': album,
+                  'genre': genre,
+                  'coverUrl': coverUrl,
+                  'audioUrl': audioUrl,
+                  'localAudioPath': localAudioPath,
+                  'localCoverPath': localCoverPath,
+                };
+
+            factory MusicTrack.fromJson(Map<String, dynamic> json) => MusicTrack(
+                  id: json['id'],
+                  title: json['title'],
+                  artist: json['artist'],
+                  album: json['album'],
+                  genre: json['genre'],
+                  coverUrl: json['coverUrl'],
+                  audioUrl: json['audioUrl'],
+                  localAudioPath: json['localAudioPath'],
+                  localCoverPath: json['localCoverPath'],
+                );
+          }
+
+          class OfflineStorageManager {
+            Future<File> _getMetaFile(String name) async {
+              final dir = await getApplicationDocumentsDirectory();
+              return File('${dir.path}/$name.json');
+            }
+
+            Future<Map<String, MusicTrack>> loadDownloadedTracks() async {
+              try {
+                final file = await _getMetaFile('spotbeats_downloaded');
+                if (!await file.exists()) return {};
+                final List rawList = jsonDecode(await file.readAsString());
+                final Map<String, MusicTrack> map = {};
+                for (final item in rawList) {
+                  final track =
+                      MusicTrack.fromJson(Map<String, dynamic>.from(item));
+                  if (track.hasLocalAudio) {
+                    map[track.id] = track;
+                  }
+                }
+                return map;
+              } catch (_) {
+                return {};
+              }
+            }
+
+            Future<Map<String, MusicTrack>> loadLikedTracks() async {
+              try {
+                final file = await _getMetaFile('spotbeats_liked');
+                if (!await file.exists()) return {};
+                final List rawList = jsonDecode(await file.readAsString());
+                final Map<String, MusicTrack> map = {};
+                for (final item in rawList) {
+                  final track =
+                      MusicTrack.fromJson(Map<String, dynamic>.from(item));
+                  map[track.id] = track;
+                }
+                return map;
+              } catch (_) {
+                return {};
+              }
+            }
+
+            Future<void> saveDownloadedTracks(
+                Map<String, MusicTrack> tracks) async {
+              try {
+                final file = await _getMetaFile('spotbeats_downloaded');
+                final list = tracks.values.map((t) => t.toJson()).toList();
+                await file.writeAsString(jsonEncode(list));
+              } catch (_) {}
+            }
+
+            Future<void> saveLikedTracks(Map<String, MusicTrack> tracks) async {
+              try {
+                final file = await _getMetaFile('spotbeats_liked');
+                final list = tracks.values.map((t) => t.toJson()).toList();
+                await file.writeAsString(jsonEncode(list));
+              } catch (_) {}
+            }
+
+            Future<MusicTrack?> downloadTrack(MusicTrack track) async {
+              try {
+                final baseDir = await getApplicationDocumentsDirectory();
+                final tracksDir = Directory('${baseDir.path}/tracks');
+                final coversDir = Directory('${baseDir.path}/covers');
+
+                if (!await tracksDir.exists()) {
+                  await tracksDir.create(recursive: true);
+                }
+                if (!await coversDir.exists()) {
+                  await coversDir.create(recursive: true);
+                }
+
+                final audioResponse = await http.get(Uri.parse(track.audioUrl));
+                if (audioResponse.statusCode != 200) return null;
+
+                final audioFile = File('${tracksDir.path}/${track.id}.m4a');
+                await audioFile.writeAsBytes(audioResponse.bodyBytes);
+
+                String? savedCoverPath;
+                try {
+                  final coverResponse =
+                      await http.get(Uri.parse(track.coverUrl));
+                  if (coverResponse.statusCode == 200) {
+                    final coverFile = File('${coversDir.path}/${track.id}.jpg');
+                    await coverFile.writeAsBytes(coverResponse.bodyBytes);
+                    savedCoverPath = coverFile.path;
+                  }
+                } catch (_) {}
+
+                return track.copyWith(
+                  localAudioPath: audioFile.path,
+                  localCoverPath: savedCoverPath,
+                );
+              } catch (e) {
+                debugPrint('Download error: $e');
+                return null;
+              }
+            }
+
+            Future<void> deleteDownloadedFiles(MusicTrack track) async {
+              try {
+                if (track.localAudioPath != null) {
+                  final audioFile = File(track.localAudioPath!);
+                  if (await audioFile.exists()) await audioFile.delete();
+                }
+                if (track.localCoverPath != null) {
+                  final coverFile = File(track.localCoverPath!);
+                  if (await coverFile.exists()) await coverFile.delete();
+                }
+              } catch (_) {}
+            }
+          }
+
+          class MusicApiService {
+            Future<List<MusicTrack>> searchSongs(String query,
+                {int limit = 35}) async {
+              if (query.trim().isEmpty) return [];
+              try {
+                final uri = Uri.https('itunes.apple.com', '/search', {
+                  'term': query,
+                  'media': 'music',
+                  'entity': 'song',
+                  'limit': '$limit',
+                });
+                final res = await http.get(uri);
+                if (res.statusCode == 200) {
+                  final results =
+                      jsonDecode(res.body)['results'] as List? ?? [];
+                  return results
+                      .where((item) => item['previewUrl'] != null)
+                      .map<MusicTrack>((item) {
+                    final art = (item['artworkUrl100']?.toString() ?? '')
+                        .replaceAll('100x100bb', '600x600bb');
+                    return MusicTrack(
+                      id: item['trackId'].toString(),
+                      title: item['trackName'] ?? 'Unknown Track',
+                      artist: item['artistName'] ?? 'Unknown Artist',
+                      album: item['collectionName'] ?? 'Single',
+                      genre: item['primaryGenreName'] ?? 'Pop',
+                      coverUrl: art,
+                      audioUrl: item['previewUrl'],
+                    );
+                  }).toList();
+                }
+              } catch (_) {}
+              return [];
+            }
+          }
+
+          class SpotBeatsApp extends StatelessWidget {
+            const SpotBeatsApp({super.key});
+
+            @override
+            Widget build(BuildContext context) {
+              return MaterialApp(
+                title: 'SpotBeats',
+                debugShowCheckedModeBanner: false,
+                theme: ThemeData(
+                  brightness: Brightness.dark,
+                  scaffoldBackgroundColor: const Color(0xFF09090B),
+                  colorScheme: const ColorScheme.dark(
+                    primary: Color(0xFF1DB954),
+                    secondary: Color(0xFFF59E0B),
+                    surface: Color(0xFF18181B),
+                  ),
+                  useMaterial3: true,
+                ),
+                home: const MainShell(),
+              );
+            }
+          }
+
+          class MainShell extends StatefulWidget {
+            const MainShell({super.key});
+
+            @override
+            State<MainShell> createState() => _MainShellState();
+          }
+
+          class _MainShellState extends State<MainShell> {
+            final MusicApiService _api = MusicApiService();
+            final OfflineStorageManager _storage = OfflineStorageManager();
+            final TextEditingController _searchController =
+                TextEditingController();
+            late final AudioPlayer _player;
+
+            int _selectedTab = 0;
+            String _librarySubTab = 'Downloaded';
+            Timer? _debounce;
+
+            bool _isLoadingHome = true;
+            bool _isLoadingSearch = false;
+            List<MusicTrack> _trendingTracks = [];
+            List<MusicTrack> _hollywoodOstTracks = [];
+            List<MusicTrack> _searchResults = [];
+
+            Map<String, MusicTrack> _downloadedTracks = {};
+            Map<String, MusicTrack> _likedTracks = {};
+            final Set<String> _downloadingTrackIds = {};
+
+            List<MusicTrack> _activeQueue = [];
+            int _currentIndex = 0;
+            bool _isShuffle = false;
+            LoopMode _loopMode = LoopMode.off;
+
+            final Map<String, String> _genreChips = {
+              'Top Hits': 'Billboard Hot 100 Pop Hits',
+              'Hollywood Pop': 'The Weeknd Taylor Swift Dua Lipa Bruno Mars',
+              'Hip-Hop': 'Drake Kendrick Lamar Travis Scott Eminem',
+              'Movie OST': 'Hans Zimmer Ludwig Goransson Marvel Soundtrack',
+              'Rock & Alt': 'Coldplay Linkin Park Imagine Dragons',
+              'EDM': 'Calvin Harris Avicii David Guetta',
+              'R&B': 'SZA Rihanna Post Malone',
+              'Global Viral': 'Global Top 50 Viral Songs',
+            };
+            String _selectedGenre = 'Top Hits';
+
+            @override
+            void initState() {
+              super.initState();
+              _player = AudioPlayer();
+
+              _player.currentIndexStream.listen((idx) {
+                if (idx != null && mounted && idx < _activeQueue.length) {
+                  setState(() => _currentIndex = idx);
+                }
+              });
+
+              _initApp();
+            }
+
+            Future<void> _initApp() async {
+              final downloaded = await _storage.loadDownloadedTracks();
+              final liked = await _storage.loadLikedTracks();
+
+              if (mounted) {
+                setState(() {
+                  _downloadedTracks = downloaded;
+                  _likedTracks = liked;
+                });
+              }
+
+              await _loadInitialCatalogs();
+            }
+
+            @override
+            void dispose() {
+              _debounce?.cancel();
+              _searchController.dispose();
+              _player.dispose();
+              super.dispose();
+            }
+
+            Future<void> _loadInitialCatalogs() async {
+              setState(() => _isLoadingHome = true);
+              final results = await Future.wait([
+                _api.searchSongs(
+                    'The Weeknd Taylor Swift Bruno Mars Billie Eilish',
+                    limit: 20),
+                _api.searchSongs(
+                    'Hans Zimmer Oppenheimer Inception Interstellar Top Gun',
+                    limit: 20),
+              ]);
+
+              if (mounted) {
+                setState(() {
+                  _trendingTracks = results[0];
+                  _hollywoodOstTracks = results[1];
+                  _searchResults = results[0];
+                  _isLoadingHome = false;
+                });
+
+                if (_trendingTracks.isNotEmpty) {
+                  await _setQueue(_trendingTracks,
+                      startIndex: 0, autoPlay: false);
+                } else if (_downloadedTracks.isNotEmpty) {
+                  await _setQueue(
+                    _downloadedTracks.values.toList(),
+                    startIndex: 0,
+                    autoPlay: false,
+                  );
+                }
+              }
+            }
+
+            Future<void> _loadGenre(String genreKey) async {
+              setState(() {
+                _selectedGenre = genreKey;
+                _isLoadingSearch = true;
+              });
+              final query = _genreChips[genreKey] ?? genreKey;
+              final tracks = await _api.searchSongs(query, limit: 35);
+              if (mounted) {
+                setState(() {
+                  _searchResults = tracks;
+                  _isLoadingSearch = false;
+                });
+              }
+            }
+
+            void _onSearchChanged(String val) {
+              if (_debounce?.isActive ?? false) _debounce!.cancel();
+              _debounce = Timer(const Duration(milliseconds: 450), () async {
+                if (val.trim().isEmpty) {
+                  _loadGenre(_selectedGenre);
+                  return;
+                }
+                setState(() => _isLoadingSearch = true);
+                final res = await _api.searchSongs(val, limit: 40);
+                if (mounted) {
+                  setState(() {
+                    _searchResults = res;
+                    _isLoadingSearch = false;
+                  });
+                }
+              });
+            }
+
+            Future<void> _setQueue(
+              List<MusicTrack> tracks, 
