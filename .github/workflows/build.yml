@@ -28,25 +28,24 @@ jobs:
           description: SpotBeats Music App
           publish_to: 'none'
           version: 1.0.0+1
+
           environment:
             sdk: '>=3.2.0 <4.0.0'
+
           dependencies:
             flutter:
               sdk: flutter
-            http: 1.2.1
-            just_audio: 0.9.38
-            just_audio_background: 0.0.1-beta.11
-            path_provider: 2.1.2
+            http: ^1.2.2
+            just_audio: 0.9.40
+            path_provider: 2.1.4
+
           dependency_overrides:
             just_audio_android: 0.9.11
             just_audio_platform_interface: 4.3.0
-            audio_session: 0.1.19
-            audio_service: 0.18.12
-            audio_service_platform_interface: 0.1.1
-            path_provider: 2.1.2
-            path_provider_android: 2.2.2
+            audio_session: 0.1.21
+            path_provider_android: 2.2.4
             path_provider_platform_interface: 2.1.2
-            sqflite: 2.3.3+1
+
           flutter:
             uses-material-design: true
           EOF
@@ -55,23 +54,30 @@ jobs:
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
               <uses-permission android:name="android.permission.INTERNET"/>
               <uses-permission android:name="android.permission.WAKE_LOCK"/>
-              <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
-              <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"/>
-              <application android:label="SpotBeats" android:name="${applicationName}" android:icon="@mipmap/ic_launcher" android:usesCleartextTraffic="true">
-                  <activity android:name="com.ryanheise.audioservice.AudioServiceActivity" android:exported="true" android:launchMode="singleTop" android:theme="@style/LaunchTheme" android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode" android:hardwareAccelerated="true" android:windowSoftInputMode="adjustResize">
-                      <meta-data android:name="io.flutter.embedding.android.NormalTheme" android:resource="@style/NormalTheme" />
+              <application
+                  android:label="SpotBeats"
+                  android:name="${applicationName}"
+                  android:icon="@mipmap/ic_launcher"
+                  android:usesCleartextTraffic="true">
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true"
+                      android:launchMode="singleTop"
+                      android:theme="@style/LaunchTheme"
+                      android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+                      android:hardwareAccelerated="true"
+                      android:windowSoftInputMode="adjustResize">
+                      <meta-data
+                        android:name="io.flutter.embedding.android.NormalTheme"
+                        android:resource="@style/NormalTheme" />
                       <intent-filter>
                           <action android:name="android.intent.action.MAIN"/>
                           <category android:name="android.intent.category.LAUNCHER"/>
                       </intent-filter>
                   </activity>
-                  <service android:name="com.ryanheise.audioservice.AudioService" android:foregroundServiceType="mediaPlayback" android:exported="true">
-                      <intent-filter><action android:name="android.media.browse.MediaBrowserService" /></intent-filter>
-                  </service>
-                  <receiver android:name="com.ryanheise.audioservice.MediaButtonReceiver" android:exported="true">
-                      <intent-filter><action android:name="android.intent.action.MEDIA_BUTTON" /></intent-filter>
-                  </receiver>
-                  <meta-data android:name="flutterEmbedding" android:value="2" />
+                  <meta-data
+                      android:name="flutterEmbedding"
+                      android:value="2" />
               </application>
           </manifest>
           EOF
@@ -83,22 +89,19 @@ jobs:
           import 'package:flutter/material.dart';
           import 'package:http/http.dart' as http;
           import 'package:just_audio/just_audio.dart';
-          import 'package:just_audio_background/just_audio_background.dart';
           import 'package:path_provider/path_provider.dart';
 
-          Future<void> main() async {
+          void main() {
             WidgetsFlutterBinding.ensureInitialized();
-            await JustAudioBackground.init(
-              androidNotificationChannelId: 'com.spotbeats.audio',
-              androidNotificationChannelName: 'SpotBeats Audio',
-              androidNotificationOngoing: true,
-            );
             runApp(MaterialApp(
               title: 'SpotBeats',
               debugShowCheckedModeBanner: false,
               theme: ThemeData.dark(useMaterial3: true).copyWith(
                 scaffoldBackgroundColor: const Color(0xFF09090B),
-                colorScheme: const ColorScheme.dark(primary: Color(0xFF1DB954), surface: Color(0xFF18181B)),
+                colorScheme: const ColorScheme.dark(
+                  primary: Color(0xFF1DB954),
+                  surface: Color(0xFF18181B),
+                ),
               ),
               home: const MainShell(),
             ));
@@ -107,10 +110,29 @@ jobs:
           class Track {
             final String id, title, artist, album, cover, audio;
             final String? localPath;
-            Track({required this.id, required this.title, required this.artist, required this.album, required this.cover, required this.audio, this.localPath});
+            Track({
+              required this.id,
+              required this.title,
+              required this.artist,
+              required this.album,
+              required this.cover,
+              required this.audio,
+              this.localPath,
+            });
             bool get isOffline => localPath != null && File(localPath!).existsSync();
-            Map<String, dynamic> toJson() => {'id': id, 'title': title, 'artist': artist, 'album': album, 'cover': cover, 'audio': audio, 'localPath': localPath};
-            factory Track.fromJson(Map<String, dynamic> j) => Track(id: j['id'], title: j['title'], artist: j['artist'], album: j['album'], cover: j['cover'], audio: j['audio'], localPath: j['localPath']);
+            Map<String, dynamic> toJson() => {
+              'id': id, 'title': title, 'artist': artist,
+              'album': album, 'cover': cover, 'audio': audio, 'localPath': localPath,
+            };
+            factory Track.fromJson(Map<String, dynamic> j) => Track(
+              id: j['id'].toString(),
+              title: j['title'] ?? '',
+              artist: j['artist'] ?? '',
+              album: j['album'] ?? '',
+              cover: j['cover'] ?? '',
+              audio: j['audio'] ?? '',
+              localPath: j['localPath'],
+            );
           }
 
           class MainShell extends StatefulWidget {
@@ -120,7 +142,7 @@ jobs:
           }
 
           class _MainShellState extends State<MainShell> {
-            final _player = AudioPlayer();
+            final AudioPlayer _player = AudioPlayer();
             Timer? _debounce;
             int _tab = 0, _idx = 0;
             String _libTab = 'Downloaded', _genre = 'Top Hits';
@@ -128,7 +150,8 @@ jobs:
             List<Track> _trending = [], _ost = [], _search = [], _queue = [];
             final Map<String, Track> _dl = {}, _liked = {};
             final Set<String> _busy = {};
-            final _genres = {
+
+            final Map<String, String> _genres = {
               'Top Hits': 'Billboard Hot 100 Pop',
               'Hollywood Pop': 'The Weeknd Taylor Swift Bruno Mars',
               'Hip-Hop': 'Drake Kendrick Lamar Eminem',
@@ -139,12 +162,23 @@ jobs:
             @override
             void initState() {
               super.initState();
-              _player.currentIndexStream.listen((i) { if (i != null && mounted && i < _queue.length) setState(() => _idx = i); });
+              _player.currentIndexStream.listen((i) {
+                if (i != null && mounted && i < _queue.length) {
+                  setState(() => _idx = i);
+                }
+              });
               _init();
             }
 
-            Future<File> _file(String n) async => File('${(await getApplicationDocumentsDirectory()).path}/$n.json');
-            Future<void> _save(String n, Map<String, Track> m) async => (await _file(n)).writeAsString(jsonEncode(m.values.map((e) => e.toJson()).toList()));
+            Future<File> _file(String n) async {
+              final d = await getApplicationDocumentsDirectory();
+              return File('${d.path}/$n.json');
+            }
+
+            Future<void> _save(String n, Map<String, Track> m) async {
+              final f = await _file(n);
+              await f.writeAsString(jsonEncode(m.values.map((e) => e.toJson()).toList()));
+            }
 
             Future<void> _init() async {
               try {
@@ -158,21 +192,40 @@ jobs:
                   }
                 }
               } catch (_) {}
-              final r = await Future.wait([_fetch('The Weeknd Taylor Swift Dua Lipa Billie Eilish'), _fetch('Hans Zimmer Oppenheimer Top Gun Interstellar')]);
+              final r = await Future.wait([
+                _fetch('The Weeknd Taylor Swift Dua Lipa Billie Eilish'),
+                _fetch('Hans Zimmer Oppenheimer Top Gun Interstellar'),
+              ]);
               if (mounted) {
-                setState(() { _trending = r[0]; _ost = r[1]; _search = r[0]; _loading = false; });
-                if (_trending.isNotEmpty) _play(_trending, 0, false);
-                else if (_dl.isNotEmpty) _play(_dl.values.toList(), 0, false);
+                setState(() {
+                  _trending = r[0];
+                  _ost = r[1];
+                  _search = r[0];
+                  _loading = false;
+                });
+                if (_trending.isNotEmpty) {
+                  _play(_trending, 0, false);
+                } else if (_dl.isNotEmpty) {
+                  _play(_dl.values.toList(), 0, false);
+                }
               }
             }
 
             Future<List<Track>> _fetch(String q) async {
               try {
-                final res = await http.get(Uri.https('itunes.apple.com', '/search', {'term': q, 'media': 'music', 'entity': 'song', 'limit': '30'}));
+                final uri = Uri.https('itunes.apple.com', '/search', {
+                  'term': q, 'media': 'music', 'entity': 'song', 'limit': '30',
+                });
+                final res = await http.get(uri);
                 if (res.statusCode == 200) {
-                  return (jsonDecode(res.body)['results'] as List).where((e) => e['previewUrl'] != null).map((e) => Track(
-                    id: e['trackId'].toString(), title: e['trackName'] ?? '', artist: e['artistName'] ?? '',
-                    album: e['collectionName'] ?? '', cover: (e['artworkUrl100'] ?? '').toString().replaceAll('100x100bb', '600x600bb'), audio: e['previewUrl'],
+                  final list = jsonDecode(res.body)['results'] as List? ?? [];
+                  return list.where((e) => e['previewUrl'] != null).map((e) => Track(
+                    id: e['trackId'].toString(),
+                    title: e['trackName'] ?? 'Unknown',
+                    artist: e['artistName'] ?? 'Artist',
+                    album: e['collectionName'] ?? 'Single',
+                    cover: (e['artworkUrl100'] ?? '').toString().replaceAll('100x100bb', '600x600bb'),
+                    audio: e['previewUrl'],
                   )).toList();
                 }
               } catch (_) {}
@@ -183,10 +236,15 @@ jobs:
               if (list.isEmpty) return;
               _queue = list.map((t) => _dl[t.id] ?? t).toList();
               setState(() => _idx = i);
-              await _player.setAudioSource(ConcatenatingAudioSource(children: _queue.map((t) {
-                final m = MediaItem(id: t.id, album: t.album, title: t.title, artist: t.artist, artUri: Uri.parse(t.cover));
-                return t.isOffline ? AudioSource.file(t.localPath!, tag: m) : AudioSource.uri(Uri.parse(t.audio), tag: m);
-              }).toList()), initialIndex: i);
+              final children = _queue.map((t) {
+                return t.isOffline
+                    ? AudioSource.file(t.localPath!)
+                    : AudioSource.uri(Uri.parse(t.audio));
+              }).toList();
+              await _player.setAudioSource(
+                ConcatenatingAudioSource(children: children),
+                initialIndex: i,
+              );
               if (go) _player.play();
             }
 
@@ -194,9 +252,11 @@ jobs:
               if (_busy.contains(t.id)) return;
               if (_dl.containsKey(t.id)) {
                 final old = _dl.remove(t.id)!;
-                if (old.localPath != null) File(old.localPath!).delete().ignore();
+                try {
+                  if (old.localPath != null) await File(old.localPath!).delete();
+                } catch (_) {}
                 await _save('dl', _dl);
-                setState(() {});
+                if (mounted) setState(() {});
                 return;
               }
               setState(() => _busy.add(t.id));
@@ -205,24 +265,58 @@ jobs:
                 final res = await http.get(Uri.parse(t.audio));
                 final f = File('${d.path}/${t.id}.m4a');
                 await f.writeAsBytes(res.bodyBytes);
-                _dl[t.id] = Track(id: t.id, title: t.title, artist: t.artist, album: t.album, cover: t.cover, audio: t.audio, localPath: f.path);
+                _dl[t.id] = Track(
+                  id: t.id, title: t.title, artist: t.artist,
+                  album: t.album, cover: t.cover, audio: t.audio, localPath: f.path,
+                );
                 await _save('dl', _dl);
               } catch (_) {}
               if (mounted) setState(() => _busy.remove(t.id));
             }
 
             Widget _tile(Track t, List<Track> q, int i) {
-              final cur = _queue.isNotEmpty && _queue[_idx].id == t.id, dl = _dl.containsKey(t.id), lk = _liked.containsKey(t.id);
+              final cur = _queue.isNotEmpty && _queue[_idx].id == t.id;
+              final dl = _dl.containsKey(t.id);
+              final lk = _liked.containsKey(t.id);
               return Card(
                 color: cur ? const Color(0xFF27272A) : const Color(0xFF18181B),
                 child: ListTile(
                   onTap: () => _play(q, i, true),
-                  leading: ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.network(t.cover, width: 48, height: 48, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const Icon(Icons.music_note))),
-                  title: Text(t.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.bold, color: cur ? const Color(0xFF1DB954) : Colors.white)),
+                  leading: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.network(
+                      t.cover, width: 48, height: 48, fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => const Icon(Icons.music_note),
+                    ),
+                  ),
+                  title: Text(
+                    t.title, maxLines: 1, overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: cur ? const Color(0xFF1DB954) : Colors.white,
+                    ),
+                  ),
                   subtitle: Text(t.artist, maxLines: 1, overflow: TextOverflow.ellipsis),
                   trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-                    IconButton(icon: _busy.contains(t.id) ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : Icon(dl ? Icons.download_done : Icons.download_for_offline_outlined, color: dl ? const Color(0xFF1DB954) : Colors.white54), onPressed: () => _download(t)),
-                    IconButton(icon: Icon(lk ? Icons.favorite : Icons.favorite_border, color: lk ? const Color(0xFF1DB954) : Colors.white38), onPressed: () { setState(() => lk ? _liked.remove(t.id) : _liked[t.id] = t); _save('liked', _liked); }),
+                    IconButton(
+                      icon: _busy.contains(t.id)
+                          ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                          : Icon(
+                              dl ? Icons.download_done : Icons.download_for_offline_outlined,
+                              color: dl ? const Color(0xFF1DB954) : Colors.white54,
+                            ),
+                      onPressed: () => _download(t),
+                    ),
+                    IconButton(
+                      icon: Icon(
+                        lk ? Icons.favorite : Icons.favorite_border,
+                        color: lk ? const Color(0xFF1DB954) : Colors.white38,
+                      ),
+                      onPressed: () {
+                        setState(() => lk ? _liked.remove(t.id) : _liked[t.id] = t);
+                        _save('liked', _liked);
+                      },
+                    ),
                   ]),
                 ),
               );
@@ -232,55 +326,137 @@ jobs:
             Widget build(BuildContext context) {
               final cur = _queue.isNotEmpty ? _queue[_idx] : null;
               final lib = (_libTab == 'Downloaded' ? _dl : _liked).values.toList();
+              final ostTop = _ost.take(6).toList();
               return Scaffold(
-                appBar: AppBar(backgroundColor: const Color(0xFF09090B), title: const Text('SpotBeats', style: TextStyle(color: Color(0xFF1DB954), fontWeight: FontWeight.bold))),
-                body: _loading ? const Center(child: CircularProgressIndicator()) : IndexedStack(index: _tab, children: [
-                  ListView(padding: const EdgeInsets.all(14), children: [
-                    const Text('Hollywood Soundtracks', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 10),
-                    ...List.generate(_ost.length.clamp(0, 6), (i) => _tile(_ost[i], _ost, i)),
-                    const SizedBox(height: 16),
-                    const Text('Trending Global & Billboard Hits', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 10),
-                    ...List.generate(_trending.length, (i) => _tile(_trending[i], _trending, i)),
-                  ]),
-                  Column(children: [
-                    Padding(padding: const EdgeInsets.all(12), child: TextField(
-                      onChanged: (v) { _debounce?.cancel(); _debounce = Timer(const Duration(milliseconds: 400), () async { final r = await _fetch(v.isEmpty ? _genres[_genre]! : v); if (mounted) setState(() => _search = r); }); },
-                      decoration: InputDecoration(hintText: 'Search songs, artists, movies...', prefixIcon: const Icon(Icons.search), filled: true, fillColor: const Color(0xFF18181B), border: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: BorderSide.none)),
-                    )),
-                    SizedBox(height: 42, child: ListView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 12), children: _genres.keys.map((g) => Padding(padding: const EdgeInsets.only(right: 8), child: ChoiceChip(label: Text(g), selected: _genre == g, onSelected: (_) async { setState(() => _genre = g); final r = await _fetch(_genres[g]!); if (mounted) setState(() => _search = r); }))).toList())),
-                    Expanded(child: ListView.builder(padding: const EdgeInsets.all(12), itemCount: _search.length, itemBuilder: (_, i) => _tile(_search[i], _search, i))),
-                  ]),
-                  Column(children: [
-                    Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                      ChoiceChip(label: Text('Downloaded (${_dl.length})'), selected: _libTab == 'Downloaded', onSelected: (_) => setState(() => _libTab = 'Downloaded')),
-                      const SizedBox(width: 10),
-                      ChoiceChip(label: Text('Liked (${_liked.length})'), selected: _libTab == 'Liked', onSelected: (_) => setState(() => _libTab = 'Liked')),
-                    ]),
-                    Expanded(child: ListView.builder(padding: const EdgeInsets.all(12), itemCount: lib.length, itemBuilder: (_, i) => _tile(lib[i], lib, i))),
-                  ]),
-                ]),
-                bottomNavigationBar: Column(mainAxisSize: MainAxisSize.min, children: [
-                  if (cur != null) ListTile(
-                    tileColor: const Color(0xFF18181B),
-                    leading: ClipRRect(borderRadius: BorderRadius.circular(6), child: Image.network(cur.cover, width: 44, height: 44, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const Icon(Icons.music_note))),
-                    title: Text(cur.title, maxLines: 1, overflow: TextOverflow.ellipsis),
-                    subtitle: Text(cur.artist, maxLines: 1, style: const TextStyle(color: Color(0xFF1DB954), fontSize: 12)),
-                    trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-                      IconButton(icon: const Icon(Icons.skip_previous), onPressed: _player.hasPrevious ? _player.seekToPrevious : null),
-                      StreamBuilder<PlayerState>(stream: _player.playerStateStream, builder: (_, s) {
-                        final p = s.data?.playing ?? false;
-                        return IconButton(icon: Icon(p ? Icons.pause_circle_filled : Icons.play_circle_fill, color: const Color(0xFF1DB954), size: 36), onPressed: () => p ? _player.pause() : _player.play());
-                      }),
-                      IconButton(icon: const Icon(Icons.skip_next), onPressed: _player.hasNext ? _player.seekToNext : null),
-                    ]),
+                appBar: AppBar(
+                  backgroundColor: const Color(0xFF09090B),
+                  title: const Text(
+                    'SpotBeats',
+                    style: TextStyle(color: Color(0xFF1DB954), fontWeight: FontWeight.bold),
                   ),
-                  NavigationBar(selectedIndex: _tab, onDestinationSelected: (i) => setState(() => _tab = i), destinations: const [
-                    NavigationDestination(icon: Icon(Icons.home), label: 'Home'),
-                    NavigationDestination(icon: Icon(Icons.search), label: 'Search'),
-                    NavigationDestination(icon: Icon(Icons.library_music), label: 'Library'),
-                  ]),
+                ),
+                body: _loading
+                    ? const Center(child: CircularProgressIndicator())
+                    : IndexedStack(index: _tab, children: [
+                        ListView(padding: const EdgeInsets.all(14), children: [
+                          const Text('Hollywood Soundtracks', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 10),
+                          ...List.generate(ostTop.length, (i) => _tile(ostTop[i], _ost, i)),
+                          const SizedBox(height: 16),
+                          const Text('Trending Global & Billboard Hits', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 10),
+                          ...List.generate(_trending.length, (i) => _tile(_trending[i], _trending, i)),
+                        ]),
+                        Column(children: [
+                          Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: TextField(
+                              onChanged: (v) {
+                                _debounce?.cancel();
+                                _debounce = Timer(const Duration(milliseconds: 400), () async {
+                                  final r = await _fetch(v.isEmpty ? _genres[_genre]! : v);
+                                  if (mounted) setState(() => _search = r);
+                                });
+                              },
+                              decoration: InputDecoration(
+                                hintText: 'Search songs, artists, movies...',
+                                prefixIcon: const Icon(Icons.search),
+                                filled: true,
+                                fillColor: const Color(0xFF18181B),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(30),
+                                  borderSide: BorderSide.none,
+                                ),
+                              ),
+                            ),
+                          ),
+                          SizedBox(
+                            height: 42,
+                            child: ListView(
+                              scrollDirection: Axis.horizontal,
+                              padding: const EdgeInsets.symmetric(horizontal: 12),
+                              children: _genres.keys.map((g) => Padding(
+                                padding: const EdgeInsets.only(right: 8),
+                                child: ChoiceChip(
+                                  label: Text(g),
+                                  selected: _genre == g,
+                                  onSelected: (_) async {
+                                    setState(() => _genre = g);
+                                    final r = await _fetch(_genres[g]!);
+                                    if (mounted) setState(() => _search = r);
+                                  },
+                                ),
+                              )).toList(),
+                            ),
+                          ),
+                          Expanded(
+                            child: ListView.builder(
+                              padding: const EdgeInsets.all(12),
+                              itemCount: _search.length,
+                              itemBuilder: (_, i) => _tile(_search[i], _search, i),
+                            ),
+                          ),
+                        ]),
+                        Column(children: [
+                          Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                            ChoiceChip(
+                              label: Text('Downloaded (${_dl.length})'),
+                              selected: _libTab == 'Downloaded',
+                              onSelected: (_) => setState(() => _libTab = 'Downloaded'),
+                            ),
+                            const SizedBox(width: 10),
+                            ChoiceChip(
+                              label: Text('Liked (${_liked.length})'),
+                              selected: _libTab == 'Liked',
+                              onSelected: (_) => setState(() => _libTab = 'Liked'),
+                            ),
+                          ]),
+                          Expanded(
+                            child: ListView.builder(
+                              padding: const EdgeInsets.all(12),
+                              itemCount: lib.length,
+                              itemBuilder: (_, i) => _tile(lib[i], lib, i),
+                            ),
+                          ),
+                        ]),
+                      ]),
+                bottomNavigationBar: Column(mainAxisSize: MainAxisSize.min, children: [
+                  if (cur != null)
+                    ListTile(
+                      tileColor: const Color(0xFF18181B),
+                      leading: ClipRRect(
+                        borderRadius: BorderRadius.circular(6),
+                        child: Image.network(
+                          cur.cover, width: 44, height: 44, fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => const Icon(Icons.music_note),
+                        ),
+                      ),
+                      title: Text(cur.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+                      subtitle: Text(cur.artist, maxLines: 1, style: const TextStyle(color: Color(0xFF1DB954), fontSize: 12)),
+                      trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                        IconButton(icon: const Icon(Icons.skip_previous), onPressed: _player.hasPrevious ? _player.seekToPrevious : null),
+                        StreamBuilder<PlayerState>(
+                          stream: _player.playerStateStream,
+                          builder: (_, s) {
+                            final p = s.data?.playing ?? false;
+                            return IconButton(
+                              icon: Icon(p ? Icons.pause_circle_filled : Icons.play_circle_fill, color: const Color(0xFF1DB954), size: 36),
+                              onPressed: () => p ? _player.pause() : _player.play(),
+                            );
+                          },
+                        ),
+                        IconButton(icon: const Icon(Icons.skip_next), onPressed: _player.hasNext ? _player.seekToNext : null),
+                      ]),
+                    ),
+                  NavigationBar(
+                    selectedIndex: _tab,
+                    onDestinationSelected: (i) => setState(() => _tab = i),
+                    destinations: const [
+                      NavigationDestination(icon: Icon(Icons.home), label: 'Home'),
+                      NavigationDestination(icon: Icon(Icons.search), label: 'Search'),
+                      NavigationDestination(icon: Icon(Icons.library_music), label: 'Library'),
+                    ],
+                  ),
                 ]),
               );
             }
